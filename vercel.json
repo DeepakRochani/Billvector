@@ -1,4 +1,5 @@
 {
+  "name": "dr-films-software",
   "cleanUrls": true,
   "rewrites": [
     {
