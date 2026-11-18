@@ -522,9 +522,9 @@ export function CustomerApp() {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center animate-pulse mb-3">
-          <span className="text-amber-400 font-display font-extrabold text-xl">DR</span>
+          <span className="text-amber-400 font-display font-extrabold text-xl">BV</span>
         </div>
-        <p className="text-slate-400 text-sm font-medium">Initializing DR FILMS Studio Engine...</p>
+        <p className="text-slate-400 text-sm font-medium">Initializing Billvector Studio Engine...</p>
       </div>
     );
   }
@@ -588,7 +588,7 @@ export function CustomerApp() {
                   New Version Available
                 </h4>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  An update to DR FILMS Billing is ready. Your offline database in IndexedDB is completely preserved.
+                  An update to Billvector is ready. Your offline database in IndexedDB is completely preserved.
                 </p>
               </div>
             </div>

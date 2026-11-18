@@ -166,7 +166,7 @@ export function SafeCloseModal({ isOpen, onClose, onGoToSettings }) {
                   Backup Failed — Window NOT Closed
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  To protect your data from being lost or unbacked, DR FILMS has kept this window open.
+                  To protect your data from being lost or unbacked, Billvector has kept this window open.
                 </p>
               </div>
             </div>

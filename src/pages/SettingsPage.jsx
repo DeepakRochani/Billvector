@@ -2615,7 +2615,7 @@ function doGet(e) {
               <div>
                 <span className="font-bold text-amber-300 block mb-0.5">Privacy & Security Notice</span>
                 <p className="text-slate-300 leading-relaxed">
-                  Your bills, payment entries, and client phone numbers will be stored directly inside your own Google Sheet. Keep your Apps Script Web App URL and Secret Key private. DR FILMS does not store your credentials on any external cloud server.
+                  Your bills, payment entries, and client phone numbers will be stored directly inside your own Google Sheet. Keep your Apps Script Web App URL and Secret Key private. Billvector does not store your credentials on any external cloud server.
                 </p>
               </div>
             </div>
@@ -3527,7 +3527,7 @@ function doGet(e) {
                 Protect studio invoices & financials with a security PIN
               </span>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Require a 4 to 6 digit PIN (and optional biometric unlock) whenever opening or returning to DR FILMS Billing.
+                Require a 4 to 6 digit PIN (and optional biometric unlock) whenever opening or returning to Billvector.
               </p>
             </div>
             <button

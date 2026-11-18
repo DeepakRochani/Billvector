@@ -198,7 +198,7 @@ export function Layout({ currentTab, onSelectTab, onNewInvoice, onRequestCloseAp
                 {settings?.businessName || 'DR FILMS'}
               </h1>
               <p className="text-[11px] font-medium text-amber-500 mt-1 uppercase tracking-wider">
-                Billing Studio
+                Billvector Studio
               </p>
               {subStatus && (
                 <div className="mt-1.5">

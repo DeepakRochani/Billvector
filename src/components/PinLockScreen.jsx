@@ -209,7 +209,7 @@ export function PinLockScreen({ securityProfile, onUnlock }) {
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold uppercase tracking-wider mb-2">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>DR FILMS STUDIO</span>
+            <span>BILLVECTOR STUDIO</span>
           </div>
           <h2 className="text-xl font-display font-extrabold text-slate-100">
             Billing Suite Locked
@@ -393,7 +393,7 @@ export function PinLockScreen({ securityProfile, onUnlock }) {
                   Forgot Security PIN?
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  DR FILMS PIN Recovery Guidelines
+                  Billvector PIN Recovery Guidelines
                 </p>
               </div>
             </div>

@@ -1047,12 +1047,12 @@ export function AdminDashboardPage({ onReturnToBilling, onAdminLogout }) {
       <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-xl px-4 sm:px-6 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 sticky top-0 z-40 shadow-xl shadow-black/40">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500/25 via-amber-500/10 to-transparent border border-amber-500/40 flex items-center justify-center shadow-lg shadow-amber-500/15">
-            <span className="text-amber-400 font-display font-extrabold text-sm tracking-wider">DR</span>
+            <span className="text-amber-400 font-display font-extrabold text-sm tracking-wider">BV</span>
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold text-white tracking-wide font-display">
-                DR FILMS Admin Control Portal
+                Billvector Admin Control Portal
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase tracking-widest hidden sm:inline-block">
                 Master Deck

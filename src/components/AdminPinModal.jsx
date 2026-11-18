@@ -208,7 +208,7 @@ export function AdminPinModal({ isOpen, onClose, onAuthenticated }) {
             <ShieldCheck className="w-8 h-8 text-amber-400 drop-shadow" />
           </div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-300 uppercase tracking-widest mb-1.5">
-            DR FILMS Control Portal
+            Billvector Control Portal
           </div>
           <h3 className="text-xl font-bold text-slate-100 font-display tracking-tight">
             {isSettingUp || !hasConfiguredPin
@@ -377,7 +377,7 @@ export function AdminPinModal({ isOpen, onClose, onAuthenticated }) {
               onClick={onClose}
               className="text-slate-400 hover:text-slate-200 transition cursor-pointer mx-auto"
             >
-              Return to DR FILMS Billing Studio
+              Return to Billvector Billing Studio
             </button>
           )}
         </div>

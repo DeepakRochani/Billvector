@@ -34,9 +34,9 @@ export function AdminApp() {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center animate-pulse mb-3">
-          <span className="text-amber-400 font-display font-extrabold text-xl">DR</span>
+          <span className="text-amber-400 font-display font-extrabold text-xl">BV</span>
         </div>
-        <p className="text-slate-400 text-sm font-medium">Initializing DR FILMS Admin Control Portal...</p>
+        <p className="text-slate-400 text-sm font-medium">Initializing Billvector Admin Control Portal...</p>
       </div>
     );
   }

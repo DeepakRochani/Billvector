@@ -55,9 +55,9 @@ export default defineConfig(({ mode }) => {
           registerType: 'prompt',
           includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
           manifest: {
-            name: 'DR FILMS — Creative Studio Billing',
-            short_name: 'DR Films Billing',
-            description: 'Offline-First Invoicing & Billing Software for DR FILMS Creative Services',
+            name: 'DR FILMS — Billvector Studio',
+            short_name: 'Billvector',
+            description: 'Billvector — Offline-First Smart Billing & Invoicing Software',
             theme_color: '#0f172a',
             background_color: '#090d16',
             display: 'standalone',

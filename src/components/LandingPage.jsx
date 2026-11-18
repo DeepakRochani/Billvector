@@ -76,14 +76,14 @@ export function LandingPage({ onLogin, onEnterApp }) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-display font-bold text-lg text-slate-100 tracking-tight leading-none">
-                  DR FILMS
+                  Billvector
                 </span>
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
-                  Billing Suite
+                  Smart Billing
                 </span>
               </div>
               <p className="text-[11px] font-medium text-slate-400 mt-0.5">
-                Photography & Production Invoicing
+                Smart Billing & Invoicing Software
               </p>
             </div>
           </div>
@@ -118,19 +118,19 @@ export function LandingPage({ onLogin, onEnterApp }) {
         <div className="max-w-4xl mx-auto text-center relative z-10 space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-amber-500/30 text-amber-300 text-xs font-medium shadow-inner">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Dedicated Billing Software for Creative Studios</span>
+            <span>Dedicated Billing Software for Studios, Shops & Businesses</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
-            Streamline Studio Billing, <br />
+            Streamline Business Billing, <br />
             <span className="bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500 bg-clip-text text-transparent">
               Invoices & Client Payments
             </span>
           </h1>
 
           <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
-            Crafted specifically for photographers, cinematographers, and film production houses. 
-            Create GST-compliant invoices, track wedding packages, prevent crew clashes, and collect payments on WhatsApp.
+            Built for modern businesses, studios, shops, and service firms. 
+            Create GST-compliant invoices, track quotes, collect instant payments with dynamic UPI QR, and manage client balances with zero hassle.
           </p>
 
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -213,7 +213,7 @@ export function LandingPage({ onLogin, onEnterApp }) {
             <span>Simple, Transparent Pricing</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Choose Your Studio Subscription Plan
+            Choose Your Subscription Plan
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-2">
             Instant activation with UPI QR. No long-term lock-in, no hidden per-seat fees.
@@ -313,7 +313,7 @@ export function LandingPage({ onLogin, onEnterApp }) {
               <span>Multi-Tenant Row-Level Security</span>
             </div>
             <h3 className="text-lg font-bold text-white tracking-tight">
-              Your Studio Records Are Strictly Private
+              Your Business Records Are Strictly Private
             </h3>
             <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
               When you log in with Google, Apple, or Email, your bills and clients are protected 
@@ -335,8 +335,8 @@ export function LandingPage({ onLogin, onEnterApp }) {
       <footer className="mt-auto border-t border-slate-800/80 py-8 px-6 text-xs text-slate-500">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-400">DR FILMS</span>
-            <span>Billing Suite</span>
+            <span className="font-semibold text-slate-400">Billvector</span>
+            <span>Billing Software</span>
             <span>—</span>
             <span>All rights reserved 2026.</span>
           </div>
@@ -360,7 +360,7 @@ export function LandingPage({ onLogin, onEnterApp }) {
               href="/admin"
               className="text-slate-500 hover:text-amber-400 transition"
             >
-              Studio Admin Portal
+              Admin Portal
             </a>
           </div>
         </div>

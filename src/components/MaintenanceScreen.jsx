@@ -55,7 +55,7 @@ export function MaintenanceScreen({ onAdminAuthenticated }) {
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
             {deployConfig?.maintenanceMessage || 
-             'The DR FILMS Billing System is currently undergoing scheduled platform upgrades and database optimizations. Regular billing access will resume shortly.'}
+             'The Billvector Billing System is currently undergoing scheduled platform upgrades and database optimizations. Regular billing access will resume shortly.'}
           </p>
         </div>
 
