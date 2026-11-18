@@ -4706,6 +4706,155 @@ console.log('\n--- Test 45: Phase 3 Production Hardening Suite ---');
   console.log('✓ Test 45 Passed: Phase 3 Production Hardening Suite (PWA Prompt & Manifest, IndexedDB W3C Isolation, Weekly Backup Reminder, Schema Validation, Sentry Telemetry & PII Scrubber, Netlify & Vercel Security Headers, and DOMPurify XSS Hardening) verified.');
 }
 
+// -------------------------------------------------------------
+// Test 46: Payment Gateway Integration & Webhook Activation Suite
+// -------------------------------------------------------------
+{
+  console.log('\n--- Test 46: Payment Gateway Integration & Webhook Automation Suite ---');
+  const cryptoModule = await import('node:crypto');
+  const crypto = cryptoModule.default || cryptoModule;
+
+  const {
+    verifyRazorpaySignature,
+    parseRazorpayEvent,
+    verifyPhonePeSignature,
+    parsePhonePeEvent,
+    verifyCashfreeSignature,
+    parseCashfreeEvent,
+    verifyStripeSignature,
+    parseStripeEvent
+  } = await import('../api/utils/webhookVerifier.js');
+
+  // 46a. Razorpay cryptographic verification & payload parsing
+  const rzpSecret = 'rzp_test_secret_key_12345';
+  const rzpRaw = JSON.stringify({
+    event: 'payment.captured',
+    payload: {
+      payment: {
+        entity: {
+          id: 'pay_1234567890',
+          order_id: 'order_987654321',
+          amount: 59900,
+          currency: 'INR',
+          status: 'captured',
+          email: 'test@drfilms.in',
+          notes: {
+            planTier: 'enterprise',
+            customerName: 'Studio Pro Customer'
+          }
+        }
+      }
+    }
+  });
+  const rzpValidSig = crypto.createHmac('sha256', rzpSecret).update(rzpRaw).digest('hex');
+  assert.strictEqual(verifyRazorpaySignature({ rawBody: rzpRaw, signature: rzpValidSig, secret: rzpSecret }).valid, true, 'Valid Razorpay signature must pass');
+  assert.strictEqual(verifyRazorpaySignature({ rawBody: rzpRaw, signature: 'invalid_sig', secret: rzpSecret }).valid, false, 'Invalid Razorpay signature must fail');
+  const rzpParsed = parseRazorpayEvent(JSON.parse(rzpRaw));
+  assert.strictEqual(rzpParsed.gateway, 'razorpay');
+  assert.strictEqual(rzpParsed.amount, 599);
+  assert.strictEqual(rzpParsed.planTier, 'enterprise');
+
+  // 46b. PhonePe SHA-256 + salt verification & base64 parsing
+  const phonepeSalt = 'phonepe_salt_key_0987654321';
+  const phonepeData = {
+    success: true,
+    code: 'PAYMENT_SUCCESS',
+    data: {
+      merchantTransactionId: 'BV_ENTERPRISE_StudioPro_1700000000',
+      transactionId: 'T26000000001',
+      amount: 59900,
+      state: 'COMPLETED'
+    }
+  };
+  const phonepeB64 = Buffer.from(JSON.stringify(phonepeData)).toString('base64');
+  const phonepeHash = crypto.createHash('sha256').update(phonepeB64 + phonepeSalt).digest('hex');
+  const phonepeHeader = `${phonepeHash}###1`;
+  assert.strictEqual(verifyPhonePeSignature({ base64Response: phonepeB64, xVerifyHeader: phonepeHeader, saltKey: phonepeSalt, saltIndex: '1' }).valid, true, 'Valid PhonePe X-VERIFY must pass');
+  assert.strictEqual(verifyPhonePeSignature({ base64Response: phonepeB64, xVerifyHeader: 'wrong###1', saltKey: phonepeSalt, saltIndex: '1' }).valid, false, 'Invalid PhonePe X-VERIFY must fail');
+  const phonepeParsed = parsePhonePeEvent(JSON.stringify({ response: phonepeB64 }));
+  assert.strictEqual(phonepeParsed.gateway, 'phonepe');
+  assert.strictEqual(phonepeParsed.amount, 599);
+  assert.strictEqual(phonepeParsed.planTier, 'enterprise');
+
+  // 46c. Cashfree HMAC-SHA256 signature verification & replay tolerance
+  const cfSecret = 'cashfree_secret_sandbox_key_xyz';
+  const cfTimestamp = String(Math.floor(Date.now() / 1000));
+  const cfRaw = JSON.stringify({
+    type: 'PAYMENT_SUCCESS_WEBHOOK',
+    data: {
+      order: {
+        order_id: 'CF_ORDER_1001',
+        order_amount: 199,
+        order_currency: 'INR',
+        order_tags: { planTier: 'starter', customerName: 'Starter Studio' }
+      },
+      payment: { cf_payment_id: 'CF_PAY_998877', payment_status: 'SUCCESS', payment_amount: 199 }
+    }
+  });
+  const cfSig = crypto.createHmac('sha256', cfSecret).update(cfTimestamp + cfRaw).digest('base64');
+  assert.strictEqual(verifyCashfreeSignature({ rawBody: cfRaw, signature: cfSig, timestamp: cfTimestamp, secretKey: cfSecret }).valid, true, 'Valid Cashfree signature must pass');
+  assert.strictEqual(verifyCashfreeSignature({ rawBody: cfRaw, signature: 'invalid_sig', timestamp: cfTimestamp, secretKey: cfSecret }).valid, false, 'Invalid Cashfree signature must fail');
+  const cfParsed = parseCashfreeEvent(JSON.parse(cfRaw));
+  assert.strictEqual(cfParsed.gateway, 'cashfree');
+  assert.strictEqual(cfParsed.amount, 199);
+
+  // 46d. Stripe HMAC-SHA256 signature verification & skew rejection
+  const stripeSecret = 'whsec_test_stripe_secret_key_abcdef';
+  const stripeNow = Math.floor(Date.now() / 1000);
+  const stripeRaw = JSON.stringify({
+    id: 'evt_stripe_test_123',
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: 'cs_test_session_123',
+        payment_intent: 'pi_3Pabcdefghijklm',
+        amount_total: 29900,
+        currency: 'inr',
+        metadata: { planTier: 'pro', customerName: 'Stripe Studio User' }
+      }
+    }
+  });
+  const stripeSig = crypto.createHmac('sha256', stripeSecret).update(`${stripeNow}.${stripeRaw}`).digest('hex');
+  assert.strictEqual(verifyStripeSignature({ rawBody: stripeRaw, signatureHeader: `t=${stripeNow},v1=${stripeSig}`, endpointSecret: stripeSecret, toleranceSeconds: 300 }).valid, true, 'Valid Stripe signature must pass');
+  assert.strictEqual(verifyStripeSignature({ rawBody: stripeRaw, signatureHeader: `t=${stripeNow},v1=wrong`, endpointSecret: stripeSecret, toleranceSeconds: 300 }).valid, false, 'Invalid Stripe signature must fail');
+  assert.strictEqual(verifyStripeSignature({ rawBody: stripeRaw, signatureHeader: `t=${stripeNow - 400},v1=${stripeSig}`, endpointSecret: stripeSecret, toleranceSeconds: 300 }).valid, false, 'Expired Stripe timestamp must fail');
+  const stripeParsed = parseStripeEvent(JSON.parse(stripeRaw));
+  assert.strictEqual(stripeParsed.gateway, 'stripe');
+  assert.strictEqual(stripeParsed.amount, 299);
+
+  // 46e. Frontend & API endpoint files presence and CSP check
+  const filesToCheck = [
+    'api/webhooks/payment.js',
+    'api/webhooks/razorpay.js',
+    'api/webhooks/phonepe.js',
+    'api/webhooks/cashfree.js',
+    'api/webhooks/stripe.js',
+    'api/utils/cloudActivator.js',
+    'src/utils/paymentGateway.js'
+  ];
+  for (const f of filesToCheck) {
+    assert.ok(fs.existsSync(path.resolve(f)), `File ${f} must exist`);
+  }
+
+  // Check CSP for Razorpay, Cashfree, Stripe, PhonePe
+  const netlifyHeaders = fs.readFileSync(path.resolve('public/_headers'), 'utf8');
+  assert.ok(netlifyHeaders.includes('https://api.razorpay.com'), 'CSP must permit Razorpay API');
+  assert.ok(netlifyHeaders.includes('https://api.cashfree.com'), 'CSP must permit Cashfree API');
+  assert.ok(netlifyHeaders.includes('https://api.stripe.com'), 'CSP must permit Stripe API');
+
+  const vercelJson = JSON.parse(fs.readFileSync(path.resolve('vercel.json'), 'utf8'));
+  const cspHeader = vercelJson.headers[0].headers.find(h => h.key === 'Content-Security-Policy')?.value || '';
+  assert.ok(cspHeader.includes('https://api.razorpay.com'), 'Vercel CSP must permit Razorpay API');
+  assert.ok(cspHeader.includes('https://api.cashfree.com'), 'Vercel CSP must permit Cashfree API');
+  assert.ok(cspHeader.includes('https://api.stripe.com'), 'Vercel CSP must permit Stripe API');
+
+  // Verify Vercel rewrite negative lookahead preserves api routes
+  const apiRewrite = vercelJson.rewrites.find(r => r.destination === '/index.html');
+  assert.ok(apiRewrite.source.includes('api'), 'Vercel rewrite negative lookahead must exclude api routes');
+
+  console.log('✓ Test 46 Passed: Payment Gateway Integration & Webhook Automation Suite (Razorpay, PhonePe, Cashfree, Stripe, CSP, and Replay Protection) verified.');
+}
+
 console.log('\nALL VERIFICATION CHECKS PASSED SUCCESSFULLY!');
 
 

@@ -38,7 +38,10 @@ import {
   CheckCircle2,
   Settings,
   UserPlus,
-  CreditCard
+  CreditCard,
+  Globe,
+  Zap,
+  Radio
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
@@ -50,6 +53,7 @@ import {
   importPrivateKeyInMemory 
 } from '../utils/adminLicenseGenerator';
 import { generateQrDataUrl } from '../utils/qrGenerator';
+import { GATEWAY_METADATA, simulateWebhookPayment } from '../utils/paymentGateway';
 
 export const FEATURE_MODULES = [
   { key: 'enableQuotes', name: 'Estimates & Quotations', category: 'Billing Core', icon: FileSpreadsheet, description: 'Estimates, quotations, and client proposals' },
@@ -72,7 +76,7 @@ export function AdminDashboardPage({ onReturnToBilling, onAdminLogout }) {
     if (typeof window !== 'undefined') {
       try {
         const p = new URLSearchParams(window.location.search).get('tab');
-        if (['issuing', 'customers', 'revocations', 'bills'].includes(p)) {
+        if (['issuing', 'customers', 'revocations', 'bills', 'gateways'].includes(p)) {
           return p;
         }
       } catch {}
@@ -1041,6 +1045,74 @@ export function AdminDashboardPage({ onReturnToBilling, onAdminLogout }) {
     setTimeout(() => setCopiedBillId(null), 2000);
   };
 
+  // Payment Gateways & Webhooks State & Simulation
+  const [copiedWebhookKey, setCopiedWebhookKey] = useState(null);
+  const [simGateway, setSimGateway] = useState('razorpay');
+  const [simPlanTier, setSimPlanTier] = useState('pro');
+  const [simCustomerName, setSimCustomerName] = useState('Ronak Sharma');
+  const [simCustomerEmail, setSimCustomerEmail] = useState('ronak@sharmastudio.com');
+  const [simAmount, setSimAmount] = useState('4999');
+  const [simTxnRef, setSimTxnRef] = useState('');
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationResult, setSimulationResult] = useState(null);
+  const [remoteWebhookPayments, setRemoteWebhookPayments] = useState([]);
+  const [isLoadingWebhookPayments, setIsLoadingWebhookPayments] = useState(false);
+
+  const fetchWebhookPayments = async () => {
+    setIsLoadingWebhookPayments(true);
+    try {
+      const client = getSupabase();
+      if (!client) return;
+      const { data, error } = await client
+        .from('subscription_payments')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setRemoteWebhookPayments(data);
+      }
+    } catch (err) {
+      console.warn('Could not fetch webhook payments:', err);
+    } finally {
+      setIsLoadingWebhookPayments(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'gateways') {
+      fetchWebhookPayments();
+    }
+  }, [activeTab]);
+
+  const handleSimulateWebhookSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setIsSimulating(true);
+    setSimulationResult(null);
+    try {
+      const res = await simulateWebhookPayment({
+        gateway: simGateway,
+        planTier: simPlanTier,
+        customerName: simCustomerName.trim() || 'Studio Customer',
+        customerEmail: simCustomerEmail.trim() || 'customer@example.com',
+        amount: Number(simAmount) || 0,
+        transactionRef: simTxnRef.trim()
+      });
+      setSimulationResult(res);
+      fetchWebhookPayments();
+    } catch (err) {
+      setSimulationResult({ success: false, error: err.message });
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const handleCopyWebhookUrl = (key, url) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(url);
+      setCopiedWebhookKey(key);
+      setTimeout(() => setCopiedWebhookKey(null), 2000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
       {/* Top Frosted Command Header */}
@@ -1194,6 +1266,24 @@ export function AdminDashboardPage({ onReturnToBilling, onAdminLogout }) {
                 {combinedAdminInvoices.length}
               </span>
             )}
+          </button>
+
+          {/* Tab 5: Payment Gateways & Webhooks */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('gateways')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-2 border transition-all cursor-pointer shrink-0 ${
+              activeTab === 'gateways'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-md shadow-amber-500/10 font-bold'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>Payment Gateways & Webhooks</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Auto-Sync
+            </span>
           </button>
         </nav>
       </div>
@@ -2159,6 +2249,401 @@ export function AdminDashboardPage({ onReturnToBilling, onAdminLogout }) {
           </div>
         )}
 
+        {/* TAB 5: PAYMENT GATEWAYS & AUTOMATED WEBHOOKS */}
+        {activeTab === 'gateways' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header Card */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6 shadow-xl backdrop-blur-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-amber-400" />
+                      <span>Payment Gateway Webhooks & Instant Activation</span>
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                      Automated Pipeline
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Connect webhooks from Razorpay, PhonePe, Cashfree, and Stripe. When a customer pays, their subscription model, plan tier, and switchboard features activate automatically in real time without manual admin intervention.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={fetchWebhookPayments}
+                    disabled={isLoadingWebhookPayments}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingWebhookPayments ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
+                    <span>Sync Cloud Logs</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Webhook Endpoint URLs Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Razorpay */}
+              <div className="rounded-2xl border border-sky-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                      Razorpay
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Payment Captured & Order Paid</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>payment.captured</code>, <code>order.paid</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>x-razorpay-signature</code></p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-sky-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/razorpay` : '/api/webhooks/razorpay'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('rzp', `${window.location.origin}/api/webhooks/razorpay`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'rzp' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* PhonePe */}
+              <div className="rounded-2xl border border-purple-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      PhonePe
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Server-to-Server Callback</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>PAYMENT_SUCCESS</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>X-VERIFY</code> (SHA256)</p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-purple-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/phonepe` : '/api/webhooks/phonepe'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('phonepe', `${window.location.origin}/api/webhooks/phonepe`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'phonepe' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cashfree */}
+              <div className="rounded-2xl border border-emerald-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Cashfree
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Payment Success Webhook</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>PAYMENT_SUCCESS_WEBHOOK</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>x-webhook-signature</code></p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-emerald-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/cashfree` : '/api/webhooks/cashfree'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('cashfree', `${window.location.origin}/api/webhooks/cashfree`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'cashfree' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stripe */}
+              <div className="rounded-2xl border border-amber-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Stripe
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Checkout & Payment Intents</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>checkout.session.completed</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>stripe-signature</code></p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-amber-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/stripe` : '/api/webhooks/stripe'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('stripe', `${window.location.origin}/api/webhooks/stripe`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'stripe' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Webhook Simulator & Tester */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6 shadow-xl backdrop-blur-xl">
+              <div className="mb-5">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-slate-100">
+                    Live Webhook Simulator & Activation Tester
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Simulate an incoming webhook from any provider to verify signature validation, database insertion, and automated client subscription activation.
+                </p>
+              </div>
+
+              <form onSubmit={handleSimulateWebhookSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Select Gateway */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Gateway Provider</label>
+                    <select
+                      value={simGateway}
+                      onChange={(e) => setSimGateway(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    >
+                      <option value="razorpay">Razorpay (India)</option>
+                      <option value="phonepe">PhonePe (UPI)</option>
+                      <option value="cashfree">Cashfree (Aggregator)</option>
+                      <option value="stripe">Stripe (Global)</option>
+                    </select>
+                  </div>
+
+                  {/* Select Plan Tier */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Subscription Plan</label>
+                    <select
+                      value={simPlanTier}
+                      onChange={(e) => {
+                        setSimPlanTier(e.target.value);
+                        const p = PLAN_TIERS[e.target.value];
+                        if (p) setSimAmount(String(p.price));
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    >
+                      <option value="starter">Starter Studio (₹ 2,499)</option>
+                      <option value="pro">Pro Studio Suite (₹ 4,999)</option>
+                      <option value="enterprise">Enterprise / Lifetime (₹ 9,999)</option>
+                    </select>
+                  </div>
+
+                  {/* Customer Name */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Customer / Studio Name</label>
+                    <input
+                      type="text"
+                      value={simCustomerName}
+                      onChange={(e) => setSimCustomerName(e.target.value)}
+                      placeholder="e.g. Ronak Sharma"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Customer Email */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Customer Email</label>
+                    <input
+                      type="email"
+                      value={simCustomerEmail}
+                      onChange={(e) => setSimCustomerEmail(e.target.value)}
+                      placeholder="e.g. client@example.com"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Amount (INR)</label>
+                    <input
+                      type="number"
+                      value={simAmount}
+                      onChange={(e) => setSimAmount(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Custom Transaction Ref / UTR (Optional)</label>
+                    <input
+                      type="text"
+                      value={simTxnRef}
+                      onChange={(e) => setSimTxnRef(e.target.value)}
+                      placeholder="Auto-generated if blank (e.g. pay_test_xxx)"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSimulating}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{isSimulating ? 'Processing Webhook...' : 'Fire Test Webhook & Auto-Activate'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Simulation Output Card */}
+              {simulationResult && (
+                <div className="mt-4 p-4 rounded-2xl bg-slate-950 border border-emerald-500/30 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Webhook Verified & Plan Activated
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-400">
+                      Gateway: {simulationResult.gateway?.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <div>
+                      <span className="text-slate-400 block">Customer:</span>
+                      <strong className="text-slate-200">{simulationResult.customerName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Plan Tier:</span>
+                      <strong className="text-amber-400 uppercase">{simulationResult.planTier}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Amount:</span>
+                      <strong className="text-slate-200">₹ {simulationResult.amount}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Transaction Ref:</span>
+                      <strong className="text-slate-200 font-mono truncate block">{simulationResult.transactionRef}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Live Webhook & Subscription Payments Log Table */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6 shadow-xl backdrop-blur-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-amber-400" />
+                    <span>Webhook Payment Transactions & Activations</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Live log of transactions received and processed via payment gateway webhooks.
+                  </p>
+                </div>
+                <span className="text-xs text-slate-400 font-mono">
+                  {remoteWebhookPayments.length} records
+                </span>
+              </div>
+
+              {isLoadingWebhookPayments ? (
+                <div className="py-8 text-center text-slate-400 text-xs animate-pulse">
+                  Loading payment logs from cloud...
+                </div>
+              ) : remoteWebhookPayments.length === 0 ? (
+                <div className="py-8 text-center bg-slate-950/40 rounded-2xl border border-slate-800/80 text-xs text-slate-400">
+                  No payment webhook records found yet. Use the simulator above to fire a test webhook.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Gateway</th>
+                        <th className="py-3 px-4">Customer</th>
+                        <th className="py-3 px-4">Plan</th>
+                        <th className="py-3 px-4">Amount</th>
+                        <th className="py-3 px-4">Transaction Ref</th>
+                        <th className="py-3 px-4">Date</th>
+                        <th className="py-3 px-4 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 bg-slate-900/30">
+                      {remoteWebhookPayments.map((p) => {
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-800/30 transition">
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+                                p.gateway === 'razorpay' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' :
+                                p.gateway === 'phonepe' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                                p.gateway === 'cashfree' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                                'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              }`}>
+                                {p.gateway}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-semibold text-slate-100 block">{p.customer_name || 'Customer'}</span>
+                              <span className="text-[10px] text-slate-400">{p.customer_email || '—'}</span>
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-amber-400 uppercase">
+                              {p.plan_tier}
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-slate-100">
+                              ₹ {Number(p.amount || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td className="py-3 px-4 font-mono text-slate-300 text-[11px] truncate max-w-xs">
+                              {p.transaction_id || p.order_id || p.id}
+                            </td>
+                            <td className="py-3 px-4 text-slate-400 text-[11px] whitespace-nowrap">
+                              {p.created_at ? new Date(p.created_at).toLocaleString() : '—'}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                                {p.status || 'Active'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* TAB 4: STUDIO BILLS & INVOICES */}
         {activeTab === 'bills' && (
           <div className="space-y-6 animate-fadeIn">
@@ -2395,6 +2880,401 @@ export function AdminDashboardPage({ onReturnToBilling, onAdminLogout }) {
                                   <span>Open</span>
                                 </button>
                               </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: PAYMENT GATEWAYS & AUTOMATED WEBHOOKS */}
+        {activeTab === 'gateways' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header Card */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6 shadow-xl backdrop-blur-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-amber-400" />
+                      <span>Payment Gateway Webhooks & Instant Activation</span>
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                      Automated Pipeline
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Connect webhooks from Razorpay, PhonePe, Cashfree, and Stripe. When a customer pays, their subscription model, plan tier, and switchboard features activate automatically in real time without manual admin intervention.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={fetchWebhookPayments}
+                    disabled={isLoadingWebhookPayments}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingWebhookPayments ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
+                    <span>Sync Cloud Logs</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Webhook Endpoint URLs Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Razorpay */}
+              <div className="rounded-2xl border border-sky-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                      Razorpay
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Payment Captured & Order Paid</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>payment.captured</code>, <code>order.paid</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>x-razorpay-signature</code></p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-sky-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/razorpay` : '/api/webhooks/razorpay'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('rzp', `${window.location.origin}/api/webhooks/razorpay`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'rzp' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* PhonePe */}
+              <div className="rounded-2xl border border-purple-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      PhonePe
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Server-to-Server Callback</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>PAYMENT_SUCCESS</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>X-VERIFY</code> (SHA256)</p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-purple-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/phonepe` : '/api/webhooks/phonepe'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('phonepe', `${window.location.origin}/api/webhooks/phonepe`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'phonepe' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cashfree */}
+              <div className="rounded-2xl border border-emerald-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Cashfree
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Payment Success Webhook</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>PAYMENT_SUCCESS_WEBHOOK</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>x-webhook-signature</code></p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-emerald-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/cashfree` : '/api/webhooks/cashfree'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('cashfree', `${window.location.origin}/api/webhooks/cashfree`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'cashfree' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stripe */}
+              <div className="rounded-2xl border border-amber-500/30 bg-slate-900/50 p-4 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Stripe
+                    </span>
+                    <span className="text-[10px] text-slate-400">POST</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-200">Checkout & Payment Intents</h4>
+                  <p className="text-[11px] text-slate-400 mt-1">Events: <code>checkout.session.completed</code></p>
+                  <p className="text-[11px] text-slate-400">Header: <code>stripe-signature</code></p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-[10px] text-slate-400 block mb-1">Production Webhook URL:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-amber-300 bg-slate-950 px-2 py-1.5 rounded-lg border border-slate-800 truncate flex-1 select-all">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/stripe` : '/api/webhooks/stripe'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWebhookUrl('stripe', `${window.location.origin}/api/webhooks/stripe`)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      title="Copy URL"
+                    >
+                      {copiedWebhookKey === 'stripe' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Webhook Simulator & Tester */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6 shadow-xl backdrop-blur-xl">
+              <div className="mb-5">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-slate-100">
+                    Live Webhook Simulator & Activation Tester
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Simulate an incoming webhook from any provider to verify signature validation, database insertion, and automated client subscription activation.
+                </p>
+              </div>
+
+              <form onSubmit={handleSimulateWebhookSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Select Gateway */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Gateway Provider</label>
+                    <select
+                      value={simGateway}
+                      onChange={(e) => setSimGateway(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    >
+                      <option value="razorpay">Razorpay (India)</option>
+                      <option value="phonepe">PhonePe (UPI)</option>
+                      <option value="cashfree">Cashfree (Aggregator)</option>
+                      <option value="stripe">Stripe (Global)</option>
+                    </select>
+                  </div>
+
+                  {/* Select Plan Tier */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Subscription Plan</label>
+                    <select
+                      value={simPlanTier}
+                      onChange={(e) => {
+                        setSimPlanTier(e.target.value);
+                        const p = PLAN_TIERS[e.target.value];
+                        if (p) setSimAmount(String(p.price));
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    >
+                      <option value="starter">Starter Studio (₹ 2,499)</option>
+                      <option value="pro">Pro Studio Suite (₹ 4,999)</option>
+                      <option value="enterprise">Enterprise / Lifetime (₹ 9,999)</option>
+                    </select>
+                  </div>
+
+                  {/* Customer Name */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Customer / Studio Name</label>
+                    <input
+                      type="text"
+                      value={simCustomerName}
+                      onChange={(e) => setSimCustomerName(e.target.value)}
+                      placeholder="e.g. Ronak Sharma"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  {/* Customer Email */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Customer Email</label>
+                    <input
+                      type="email"
+                      value={simCustomerEmail}
+                      onChange={(e) => setSimCustomerEmail(e.target.value)}
+                      placeholder="e.g. client@example.com"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Amount (INR)</label>
+                    <input
+                      type="number"
+                      value={simAmount}
+                      onChange={(e) => setSimAmount(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Custom Transaction Ref / UTR (Optional)</label>
+                    <input
+                      type="text"
+                      value={simTxnRef}
+                      onChange={(e) => setSimTxnRef(e.target.value)}
+                      placeholder="Auto-generated if blank (e.g. pay_test_xxx)"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSimulating}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{isSimulating ? 'Processing Webhook...' : 'Fire Test Webhook & Auto-Activate'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Simulation Output Card */}
+              {simulationResult && (
+                <div className="mt-4 p-4 rounded-2xl bg-slate-950 border border-emerald-500/30 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Webhook Verified & Plan Activated
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-400">
+                      Gateway: {simulationResult.gateway?.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <div>
+                      <span className="text-slate-400 block">Customer:</span>
+                      <strong className="text-slate-200">{simulationResult.customerName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Plan Tier:</span>
+                      <strong className="text-amber-400 uppercase">{simulationResult.planTier}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Amount:</span>
+                      <strong className="text-slate-200">₹ {simulationResult.amount}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Transaction Ref:</span>
+                      <strong className="text-slate-200 font-mono truncate block">{simulationResult.transactionRef}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Live Webhook & Subscription Payments Log Table */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 sm:p-6 shadow-xl backdrop-blur-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-amber-400" />
+                    <span>Webhook Payment Transactions & Activations</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Live log of transactions received and processed via payment gateway webhooks.
+                  </p>
+                </div>
+                <span className="text-xs text-slate-400 font-mono">
+                  {remoteWebhookPayments.length} records
+                </span>
+              </div>
+
+              {isLoadingWebhookPayments ? (
+                <div className="py-8 text-center text-slate-400 text-xs animate-pulse">
+                  Loading payment logs from cloud...
+                </div>
+              ) : remoteWebhookPayments.length === 0 ? (
+                <div className="py-8 text-center bg-slate-950/40 rounded-2xl border border-slate-800/80 text-xs text-slate-400">
+                  No payment webhook records found yet. Use the simulator above to fire a test webhook.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-slate-950/80 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Gateway</th>
+                        <th className="py-3 px-4">Customer</th>
+                        <th className="py-3 px-4">Plan</th>
+                        <th className="py-3 px-4">Amount</th>
+                        <th className="py-3 px-4">Transaction Ref</th>
+                        <th className="py-3 px-4">Date</th>
+                        <th className="py-3 px-4 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 bg-slate-900/30">
+                      {remoteWebhookPayments.map((p) => {
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-800/30 transition">
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+                                p.gateway === 'razorpay' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' :
+                                p.gateway === 'phonepe' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                                p.gateway === 'cashfree' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                                'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              }`}>
+                                {p.gateway}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-semibold text-slate-100 block">{p.customer_name || 'Customer'}</span>
+                              <span className="text-[10px] text-slate-400">{p.customer_email || '—'}</span>
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-amber-400 uppercase">
+                              {p.plan_tier}
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-slate-100">
+                              ₹ {Number(p.amount || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td className="py-3 px-4 font-mono text-slate-300 text-[11px] truncate max-w-xs">
+                              {p.transaction_id || p.order_id || p.id}
+                            </td>
+                            <td className="py-3 px-4 text-slate-400 text-[11px] whitespace-nowrap">
+                              {p.created_at ? new Date(p.created_at).toLocaleString() : '—'}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                                {p.status || 'Active'}
+                              </span>
                             </td>
                           </tr>
                         );
